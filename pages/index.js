@@ -69,7 +69,6 @@ export default function Home() {
 
   useEffect(() => {
     loadFromStorage();
-    loadApprovedReviews();
     const saved = sessionStorage.getItem('qp_admin_session');
     if (saved === '1') setAdminAuth(true);
     // scroll reveal
@@ -80,15 +79,7 @@ export default function Home() {
     return () => { window.removeEventListener('scroll', onScroll); ro.disconnect(); };
   }, []);
 
-  async function loadApprovedReviews() {
-    try {
-      const res = await fetch('/api/feedback');
-      const data = await res.json();
-      if (Array.isArray(data)) setReviews(data);
-    } catch(e) {}
-  }
-
-  useEffect(() => { if (adminOpen) loadFromStorage(); }, [adminOpen]);
+  useEffect(() => { if (adminOpen && adminAuth) loadAdminData(); }, [adminOpen]);
 
   function loadFromStorage() {
     setPending(getStore('qp_fb_pending_v1'));
@@ -146,22 +137,35 @@ export default function Home() {
   }
 
   // Feedback submit
-  async function submitFeedback() {
+  function submitFeedback() {
     if (!fbName) { alert('Please enter your name.'); return; }
     if (!fbRole) { alert('Please select Student or Parent.'); return; }
     if (!selRating) { alert('Please select a star rating.'); return; }
     if (!fbMessage || fbMessage.length < 10) { alert('Please write at least 10 characters.'); return; }
+    const p = getStore('qp_fb_pending_v1');
+    p.push({ id:genId(), name:fbName, role:fbRole, course:fbCourse, rating:selRating, message:fbMessage, status:'pending', date: new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), submittedAt:Date.now() });
+    setStore('qp_fb_pending_v1', p);
+    setFbName(''); setFbRole(''); setFbCourse(''); setFbMessage(''); setSelRating(0);
+    setFbSuccess(true);
+    setTimeout(() => setFbSuccess(false), 5000);
+  }
+
+  // Enquiry submit
+  async function submitEnquiry() {
+    if (!enquiryName) { alert('Please enter your name.'); return; }
+    const digits = enquiryPhone.replace(/\D/g,'');
+    if (digits.length < 10) { alert('Please enter a valid phone number.'); return; }
     try {
-      const res = await fetch('/api/feedback', {
+      const res = await fetch('/api/enquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: fbName, role: fbRole, course: fbCourse, rating: selRating, message: fbMessage })
+        body: JSON.stringify({ name: enquiryName, phone: digits })
       });
       const data = await res.json();
       if (data.success) {
-        setFbName(''); setFbRole(''); setFbCourse(''); setFbMessage(''); setSelRating(0);
-        setFbSuccess(true);
-        setTimeout(() => setFbSuccess(false), 5000);
+        setEnquiryName(''); setEnquiryPhone('');
+        setEnquirySuccess(true);
+        setTimeout(() => setEnquirySuccess(false), 5000);
       } else {
         alert('Something went wrong. Please try again.');
       }
@@ -170,45 +174,60 @@ export default function Home() {
     }
   }
 
-  // Enquiry submit
-  function submitEnquiry() {
-    if (!enquiryName) { alert('Please enter your name.'); return; }
-    const digits = enquiryPhone.replace(/\D/g,'');
-    if (digits.length < 10) { alert('Please enter a valid phone number.'); return; }
-    const enqs = getStore('qp_enquiries_v1');
-    enqs.push({ id:genId(), name:enquiryName, phone:enquiryPhone, date:new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), time:new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}), submittedAt:Date.now(), status:'new' });
-    setStore('qp_enquiries_v1', enqs);
-    setEnquiryName(''); setEnquiryPhone('');
-    setEnquirySuccess(true);
-    setTimeout(() => setEnquirySuccess(false), 5000);
-  }
-
   // Admin
   function checkAdminPass() {
     if (adminPass === ADMIN_PASSWORD) {
       sessionStorage.setItem('qp_admin_session','1');
       setAdminAuth(true); setAdminErr(false);
-      loadFromStorage();
+      loadAdminData();
     } else { setAdminErr(true); }
   }
 
-  function adminAction(id, action) {
-    let p = getStore('qp_fb_pending_v1');
-    let a = getStore('qp_fb_approved_v1');
-    let r = getStore('qp_fb_rejected_v1');
-    if (action==='approve') { const idx=p.findIndex(x=>x.id===id); if(idx!==-1){const rec=p.splice(idx,1)[0];rec.status='approved';a.push(rec);} }
-    else if (action==='reject') { const idx=p.findIndex(x=>x.id===id); if(idx!==-1){const rec=p.splice(idx,1)[0];rec.status='rejected';r.push(rec);} }
-    else if (action==='unapprove') { const idx=a.findIndex(x=>x.id===id); if(idx!==-1){const rec=a.splice(idx,1)[0];rec.status='pending';p.push(rec);} }
-    else if (action==='restore') { const idx=r.findIndex(x=>x.id===id); if(idx!==-1){const rec=r.splice(idx,1)[0];rec.status='pending';p.push(rec);} }
-    else if (action==='delete-approved') { a=a.filter(x=>x.id!==id); }
-    else if (action==='delete-rejected') { r=r.filter(x=>x.id!==id); }
-    setStore('qp_fb_pending_v1',p); setStore('qp_fb_approved_v1',a); setStore('qp_fb_rejected_v1',r);
-    setPending(p); setApproved(a); setRejected(r); setReviews(a);
+  async function loadAdminData() {
+    try {
+      const [fbRes, enqRes] = await Promise.all([
+        fetch('/api/admin-feedback'),
+        fetch('/api/enquiries')
+      ]);
+      const fbData = await fbRes.json();
+      const enqData = await enqRes.json();
+      if (Array.isArray(fbData)) {
+        setPending(fbData.filter(r => r.status === 'pending'));
+        setApproved(fbData.filter(r => r.status === 'approved'));
+        setRejected(fbData.filter(r => r.status === 'rejected'));
+      }
+      if (Array.isArray(enqData)) setEnquiries(enqData);
+    } catch(e) {}
   }
 
-  function deleteEnquiry(id) {
-    const e = getStore('qp_enquiries_v1').filter(x=>x.id!==id);
-    setStore('qp_enquiries_v1',e); setEnquiries(e);
+  async function adminAction(id, action) {
+    const actionMap = {
+      'approve': 'approve',
+      'reject': 'reject',
+      'unapprove': 'pending',
+      'restore': 'pending',
+      'delete-approved': 'delete',
+      'delete-rejected': 'delete',
+    };
+    try {
+      await fetch('/api/admin-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: actionMap[action] })
+      });
+      await loadAdminData();
+    } catch(e) {}
+  }
+
+  async function deleteEnquiry(id) {
+    try {
+      await fetch('/api/enquiries', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      await loadAdminData();
+    } catch(e) {}
   }
 
   const avgRating = reviews.length ? (reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1) : null;
