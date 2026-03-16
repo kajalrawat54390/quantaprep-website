@@ -69,6 +69,7 @@ export default function Home() {
 
   useEffect(() => {
     loadFromStorage();
+    loadApprovedReviews();
     const saved = sessionStorage.getItem('qp_admin_session');
     if (saved === '1') setAdminAuth(true);
     // scroll reveal
@@ -78,6 +79,14 @@ export default function Home() {
     window.addEventListener('scroll', onScroll);
     return () => { window.removeEventListener('scroll', onScroll); ro.disconnect(); };
   }, []);
+
+  async function loadApprovedReviews() {
+    try {
+      const res = await fetch('/api/feedback');
+      const data = await res.json();
+      if (Array.isArray(data)) setReviews(data);
+    } catch(e) {}
+  }
 
   useEffect(() => { if (adminOpen) loadFromStorage(); }, [adminOpen]);
 
@@ -137,17 +146,28 @@ export default function Home() {
   }
 
   // Feedback submit
-  function submitFeedback() {
+  async function submitFeedback() {
     if (!fbName) { alert('Please enter your name.'); return; }
     if (!fbRole) { alert('Please select Student or Parent.'); return; }
     if (!selRating) { alert('Please select a star rating.'); return; }
     if (!fbMessage || fbMessage.length < 10) { alert('Please write at least 10 characters.'); return; }
-    const p = getStore('qp_fb_pending_v1');
-    p.push({ id:genId(), name:fbName, role:fbRole, course:fbCourse, rating:selRating, message:fbMessage, status:'pending', date: new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), submittedAt:Date.now() });
-    setStore('qp_fb_pending_v1', p);
-    setFbName(''); setFbRole(''); setFbCourse(''); setFbMessage(''); setSelRating(0);
-    setFbSuccess(true);
-    setTimeout(() => setFbSuccess(false), 5000);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fbName, role: fbRole, course: fbCourse, rating: selRating, message: fbMessage })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFbName(''); setFbRole(''); setFbCourse(''); setFbMessage(''); setSelRating(0);
+        setFbSuccess(true);
+        setTimeout(() => setFbSuccess(false), 5000);
+      } else {
+        alert('Something went wrong. Please try again.');
+      }
+    } catch(e) {
+      alert('Something went wrong. Please try again.');
+    }
   }
 
   // Enquiry submit
