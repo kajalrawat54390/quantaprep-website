@@ -1,5 +1,4 @@
-import { google } from 'googleapis';
-import { Readable } from 'stream';
+import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import { neon } from '@neondatabase/serverless';
 
@@ -7,29 +6,11 @@ export const config = { api: { bodyParser: false } };
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  },
-  scopes: ['https://www.googleapis.com/auth/drive'],
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-async function getOrCreateFolder(drive, parentId, name) {
-  const res = await drive.files.list({
-    q: `'${parentId}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: 'files(id)',
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
-  if (res.data.files.length > 0) return res.data.files[0].id;
-  const created = await drive.files.create({
-    requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
-    fields: 'id',
-    supportsAllDrives: true,
-  });
-  return created.data.id;
-}
 
 function runMiddleware(req, res, fn) {
   return new Promise((resolve, reject) =>
@@ -51,46 +32,37 @@ export default async function handler(req, res) {
   }
 
   try {
-    const drive = google.drive({ version: 'v3', auth });
-    const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
-
-    const courseFolderId = await getOrCreateFolder(drive, rootId, course);
-    const typeFolderId   = await getOrCreateFolder(drive, courseFolderId, type);
-
-    const response = await drive.files.create({
-      requestBody: {
-        name: file.originalname,
-        parents: [typeFolderId],
-        mimeType: 'application/pdf',
-      },
-      media: {
-        mimeType: 'application/pdf',
-        body: Readable.from(file.buffer),
-      },
-      fields: 'id, name, webViewLink',
-      supportsAllDrives: true,
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'raw',
+          folder: `quantaprep/${course}/${type}`,
+          public_id: file.originalname.replace('.pdf', ''),
+          format: 'pdf',
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(file.buffer);
     });
 
-    await drive.permissions.create({
-      fileId: response.data.id,
-      requestBody: { role: 'reader', type: 'anyone' },
-      supportsAllDrives: true,
-    });
-
+    // Save to Postgres
     const sql = neon(process.env.DATABASE_URL);
     await sql`
       INSERT INTO drive_files (course, type, name, drive_id, view_url)
-      VALUES (${course}, ${type}, ${file.originalname}, ${response.data.id}, ${response.data.webViewLink})
+      VALUES (${course}, ${type}, ${file.originalname}, ${result.public_id}, ${result.secure_url})
     `;
 
     res.status(200).json({
       success: true,
-      url: response.data.webViewLink,
-      fileId: response.data.id,
-      fileName: response.data.name,
+      url: result.secure_url,
+      fileId: result.public_id,
+      fileName: file.originalname,
     });
   } catch (err) {
-    console.error('Drive upload error:', err);
+    console.error('Cloudinary upload error:', err);
     res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 }
