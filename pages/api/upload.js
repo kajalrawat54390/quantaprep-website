@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 import multer from 'multer';
+import { neon } from '@neondatabase/serverless';
 
 export const config = { api: { bodyParser: false } };
 
@@ -21,11 +22,7 @@ async function getOrCreateFolder(drive, parentId, name) {
   });
   if (res.data.files.length > 0) return res.data.files[0].id;
   const created = await drive.files.create({
-    requestBody: {
-      name,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentId],
-    },
+    requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
     fields: 'id',
   });
   return created.data.id;
@@ -43,7 +40,7 @@ export default async function handler(req, res) {
   await runMiddleware(req, res, upload.single('file'));
 
   const file = req.file;
-  const folder = req.body.folder; // e.g. "class9/notes"
+  const folder = req.body.folder;
   const [course, type] = (folder || '').split('/');
 
   if (!file || !course || !type) {
@@ -54,11 +51,9 @@ export default async function handler(req, res) {
     const drive = google.drive({ version: 'v3', auth });
     const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
 
-    // Auto-create course and type folders
     const courseFolderId = await getOrCreateFolder(drive, rootId, course);
-    const typeFolderId = await getOrCreateFolder(drive, courseFolderId, type);
+    const typeFolderId   = await getOrCreateFolder(drive, courseFolderId, type);
 
-    // Upload file
     const response = await drive.files.create({
       requestBody: {
         name: file.originalname,
@@ -72,11 +67,18 @@ export default async function handler(req, res) {
       fields: 'id, name, webViewLink',
     });
 
-    // Make it publicly viewable
+    // Make file publicly viewable
     await drive.permissions.create({
       fileId: response.data.id,
       requestBody: { role: 'reader', type: 'anyone' },
     });
+
+    // Save to Postgres
+    const sql = neon(process.env.DATABASE_URL);
+    await sql`
+      INSERT INTO drive_files (course, type, name, drive_id, view_url)
+      VALUES (${course}, ${type}, ${file.originalname}, ${response.data.id}, ${response.data.webViewLink})
+    `;
 
     res.status(200).json({
       success: true,
@@ -85,7 +87,7 @@ export default async function handler(req, res) {
       fileName: response.data.name,
     });
   } catch (err) {
-    console.error(err);
+    console.error('Drive upload error:', err);
     res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 }
