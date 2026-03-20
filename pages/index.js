@@ -43,6 +43,8 @@ export default function Home() {
   const [enquiries, setEnquiries] = useState([]);
   const [navOpen, setNavOpen] = useState(false);
   const [showBackTop, setShowBackTop] = useState(false);
+  const [driveModal, setDriveModal] = useState(null);
+  const [driveLoading, setDriveLoading] = useState(false);
 
   const ADMIN_PASSWORD = 'kajal@admin2026';
   const COURSES = [
@@ -65,13 +67,11 @@ export default function Home() {
   function getStore(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; } }
   function setStore(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   useEffect(() => {
     loadFromStorage();
     const saved = sessionStorage.getItem('qp_admin_session');
     if (saved === '1') setAdminAuth(true);
-    // scroll reveal
     const ro = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); }), {threshold:0.12});
     document.querySelectorAll('.reveal').forEach(el => ro.observe(el));
     const onScroll = () => setShowBackTop(window.scrollY > 400);
@@ -130,10 +130,23 @@ export default function Home() {
     fetch('/api/logout').catch(()=>{});
   }
 
-  // Resource click
-  function handleResourceClick(course, type) {
-    if (!currentUser) { setAccessPopup({ state:'login', course, type }); return; }
-    setAccessPopup({ state:'locked', course, type });
+  // Resource click — fetch from Google Drive
+  async function handleResourceClick(course, type) {
+    if (!currentUser) {
+      setAccessPopup({ state:'login', course, type });
+      return;
+    }
+    // Logged in — fetch files
+    setDriveLoading(true);
+    setDriveModal({ course, type, files: null });
+    try {
+      const res = await fetch(`/api/drive-files?course=${course.id}&type=${type.id}`);
+      const data = await res.json();
+      setDriveModal({ course, type, files: data.files || [] });
+    } catch {
+      setDriveModal({ course, type, files: [] });
+    }
+    setDriveLoading(false);
   }
 
   // Feedback submit
@@ -456,6 +469,14 @@ export default function Home() {
         .admin-login-err{color:#f87171;font-size:13px;margin-top:8px;}
         .reveal{opacity:0;transform:translateY(24px);transition:opacity 0.55s ease,transform 0.55s ease;}
         .reveal.visible{opacity:1;transform:translateY(0);}
+        .drive-file-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--off-white);border:1.5px solid #e0ecff;border-radius:10px;}
+        .drive-file-row:hover{border-color:var(--blue);}
+        .drive-file-name{font-weight:600;font-size:14px;color:var(--navy);}
+        .drive-file-date{font-size:12px;color:var(--muted);margin-top:2px;}
+        .drive-btn-view{padding:7px 14px;background:var(--navy);color:white;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;}
+        .drive-btn-dl{padding:7px 14px;background:var(--off-white);color:var(--navy);border:1.5px solid #dde8f8;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;}
+        .drive-modal-inner{max-width:540px;}
+        .yt-iframe{width:100%;aspect-ratio:16/9;border:none;border-radius:10px;margin-top:8px;}
         @media(max-width:900px){.hero{flex-direction:column;text-align:center;}.hero-buttons{justify-content:center;}.hero-image-wrap img{width:260px;}.floating-card.c1,.floating-card.c2{display:none;}.teacher{flex-direction:column;text-align:center;}.teacher-tags{justify-content:center;}.feedback-layout{grid-template-columns:1fr;}.visit-inner{grid-template-columns:1fr;}.footer-top{grid-template-columns:1fr 1fr;gap:24px;}}
         @media(max-width:720px){nav ul{display:none;}.nav-ul-open{display:flex!important;flex-direction:column;position:absolute;top:68px;left:0;right:0;background:var(--navy);padding:16px 8%;gap:4px;z-index:999;}.hamburger{display:flex!important;}.hero-text h2{font-size:34px;}.section-title{font-size:26px;}.cta-section h2{font-size:28px;}.modal{padding:28px 22px;}.resource-type-grid{grid-template-columns:repeat(2,1fr)!important;}}
         @media(max-width:440px){.resource-type-grid{grid-template-columns:1fr!important;}}
@@ -547,7 +568,7 @@ export default function Home() {
         <div className="resources-header reveal">
           <div className="section-label">Study Material &amp; PYQ Papers</div>
           <h2 className="section-title">Student Resources</h2>
-          <p className="section-sub">Click any section to access your study material. Your teacher controls access to each section individually.</p>
+          <p className="section-sub">Click any section to access your study material. Login required to view files.</p>
         </div>
         <div className="course-tabs-wrap reveal">
           {COURSES.map(c => (
@@ -722,35 +743,91 @@ export default function Home() {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
       </a>
 
-      {/* ACCESS POPUP */}
+      {/* ACCESS POPUP — only shown when NOT logged in */}
       <div className={'access-popup-overlay' + (accessPopup?' open':'')} onClick={e => { if(e.target.className.includes('access-popup-overlay')) setAccessPopup(null); }}>
         {accessPopup && (
           <div className="access-popup">
             <button className="access-popup-close" onClick={() => setAccessPopup(null)}>✕</button>
-            <div className={'ap-band ' + (accessPopup.state==='login'?'blue':'orange')}></div>
+            <div className="ap-band blue"></div>
             <div className="ap-body">
-              <div className={'ap-icon-wrap ' + (accessPopup.state==='login'?'login-style':'locked-style')}>{accessPopup.state==='login'?'🔐':'🔒'}</div>
+              <div className="ap-icon-wrap login-style">🔐</div>
               <span className="ap-section-name">{accessPopup.type.icon}  {accessPopup.type.title}  ·  {accessPopup.course.label}</span>
-              <h3>{accessPopup.state==='login'?'Login to Access':'Access Not Granted Yet'}</h3>
-              <p>{accessPopup.state==='login'?`You need to be logged in to view ${accessPopup.type.title}. Already enrolled? Login below.`:`Hi! Your teacher hasn't unlocked ${accessPopup.type.title} for ${accessPopup.course.label} yet. Message Kajal Ma'am on WhatsApp to request access.`}</p>
+              <h3>Login to Access</h3>
+              <p>You need to be logged in to view {accessPopup.type.title}. Already enrolled? Login below.</p>
               <div className="ap-btns">
-                {accessPopup.state==='login' ? (
-                  <>
-                    <button className="ap-btn ap-btn-primary" onClick={() => { setAccessPopup(null); setModalOpen(true); setModalTab('login'); }}>🔑 Login to Continue</button>
-                    <div style={{fontSize:'11px',color:'var(--muted)',textAlign:'center'}}>— or —</div>
-                    <button className="ap-btn ap-btn-secondary" onClick={() => { setAccessPopup(null); setModalOpen(true); setModalTab('register'); }}>✏️ Enroll Now — It's Free</button>
-                  </>
-                ) : (
-                  <>
-                    <a className="ap-btn ap-btn-wa" href={`https://wa.me/919389409569?text=${encodeURIComponent(`Hi Kajal Ma'am, I need access to ${accessPopup.type.title} for ${accessPopup.course.label}. Please unlock it for me. Thank you!`)}`} target="_blank" rel="noopener">💬 WhatsApp Kajal Ma'am</a>
-                    <button className="ap-btn ap-btn-secondary" onClick={() => setAccessPopup(null)}>Close</button>
-                  </>
-                )}
+                <button className="ap-btn ap-btn-primary" onClick={() => { setAccessPopup(null); setModalOpen(true); setModalTab('login'); }}>🔑 Login to Continue</button>
+                <div style={{fontSize:'11px',color:'var(--muted)',textAlign:'center'}}>— or —</div>
+                <button className="ap-btn ap-btn-secondary" onClick={() => { setAccessPopup(null); setModalOpen(true); setModalTab('register'); }}>✏️ Enroll Now — It's Free</button>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* DRIVE FILES MODAL — shown when logged in and clicks a resource */}
+      {driveModal && (
+        <div className="modal-overlay open" onClick={e => { if(e.target.className.includes('modal-overlay')) setDriveModal(null); }}>
+          <div className="modal drive-modal-inner">
+            <button className="modal-close" onClick={() => setDriveModal(null)}>✕</button>
+            <div style={{marginBottom:'20px'}}>
+              <span style={{fontSize:'32px'}}>{driveModal.type.icon}</span>
+              <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--navy)',marginTop:'8px'}}>
+                {driveModal.type.title} — {driveModal.course.label}
+              </h3>
+            </div>
+
+            {/* Loading state */}
+            {driveLoading || driveModal.files === null ? (
+              <p style={{color:'var(--muted)',textAlign:'center',padding:'32px'}}>⏳ Loading files…</p>
+
+            /* Empty state */
+            ) : driveModal.files.length === 0 ? (
+              <div style={{textAlign:'center',padding:'32px',color:'var(--muted)'}}>
+                <div style={{fontSize:'40px',marginBottom:'12px'}}>📂</div>
+                <p style={{fontWeight:600,marginBottom:'8px'}}>No files uploaded yet</p>
+                <p style={{fontSize:'13px'}}>Check back soon or message Kajal Ma'am on WhatsApp!</p>
+                <a
+                  href={`https://wa.me/919389409569?text=${encodeURIComponent(`Hi Kajal Ma'am, please upload ${driveModal.type.title} for ${driveModal.course.label}. Thank you!`)}`}
+                  target="_blank" rel="noopener"
+                  style={{display:'inline-block',marginTop:'16px',padding:'10px 20px',background:'#25d366',color:'white',borderRadius:'8px',fontWeight:600,fontSize:'13px',textDecoration:'none'}}
+                >💬 WhatsApp Kajal Ma'am</a>
+              </div>
+
+            /* Files list — PDFs from Drive, Videos from YouTube */
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:'10px',maxHeight:'420px',overflowY:'auto'}}>
+                {driveModal.type.id === 'videos'
+                  ? driveModal.files.map(f => (
+                    <div key={f.id} style={{borderRadius:'10px',overflow:'hidden',border:'1.5px solid #e0ecff'}}>
+                      <div style={{padding:'10px 14px',background:'var(--off-white)',fontWeight:600,fontSize:'14px',color:'var(--navy)'}}>{f.name || f.title}</div>
+                      <iframe
+                        className="yt-iframe"
+                        src={`https://www.youtube.com/embed/${f.youtube_id}`}
+                        allowFullScreen
+                        title={f.name || f.title}
+                      />
+                    </div>
+                  ))
+                  : driveModal.files.map(f => (
+                    <div key={f.id} className="drive-file-row">
+                      <div>
+                        <div className="drive-file-name">📄 {f.name}</div>
+                        <div className="drive-file-date">
+                          {f.added_at ? new Date(f.added_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : ''}
+                        </div>
+                      </div>
+                      <div style={{display:'flex',gap:'8px',flexShrink:0}}>
+                        <a href={f.view_url} target="_blank" rel="noopener" className="drive-btn-view">👁 View</a>
+                        <a href={f.view_url} target="_blank" rel="noopener" className="drive-btn-dl">↓ Save</a>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* LOGIN/REGISTER MODAL */}
       <div className={'modal-overlay' + (modalOpen?' open':'')} onClick={e => { if(e.target.className.includes('modal-overlay')) setModalOpen(false); }}>
@@ -815,7 +892,7 @@ export default function Home() {
                 <button className="admin-close-btn" onClick={() => setAdminOpen(false)}>✕ Close Panel</button>
               </div>
               <div className="admin-tabs">
-                {[['pending','⏳ Pending',pending.length,''],['approved','✅ Approved',approved.length,'rgba(74,222,128,0.25)'],['rejected','❌ Rejected',rejected.length,'rgba(248,113,113,0.18)'],['enquiries','📞 Enquiries',enquiries.length,'rgba(0,180,216,0.2)']].map(([id,label,count]) => (
+                {[['pending','⏳ Pending',pending.length],['approved','✅ Approved',approved.length],['rejected','❌ Rejected',rejected.length],['enquiries','📞 Enquiries',enquiries.length]].map(([id,label,count]) => (
                   <button key={id} className={'admin-tab'+(adminTab===id?' active':'')} onClick={()=>setAdminTab(id)}>
                     {label} <span className="admin-tab-badge">{count}</span>
                   </button>
