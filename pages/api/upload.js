@@ -19,11 +19,14 @@ async function getOrCreateFolder(drive, parentId, name) {
   const res = await drive.files.list({
     q: `'${parentId}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
     fields: 'files(id)',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
   if (res.data.files.length > 0) return res.data.files[0].id;
   const created = await drive.files.create({
     requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
     fields: 'id',
+    supportsAllDrives: true,
   });
   return created.data.id;
 }
@@ -65,15 +68,15 @@ export default async function handler(req, res) {
         body: Readable.from(file.buffer),
       },
       fields: 'id, name, webViewLink',
+      supportsAllDrives: true,
     });
 
-    // Make file publicly viewable
     await drive.permissions.create({
       fileId: response.data.id,
       requestBody: { role: 'reader', type: 'anyone' },
+      supportsAllDrives: true,
     });
 
-    // Save to Postgres
     const sql = neon(process.env.DATABASE_URL);
     await sql`
       INSERT INTO drive_files (course, type, name, drive_id, view_url)
