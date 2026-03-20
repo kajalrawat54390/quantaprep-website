@@ -1,3 +1,4 @@
+// pages/api/upload.js
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import { neon } from '@neondatabase/serverless';
@@ -32,7 +33,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Upload to Cloudinary
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
@@ -40,6 +40,8 @@ export default async function handler(req, res) {
           folder: `quantaprep/${course}/${type}`,
           public_id: file.originalname.replace('.pdf', ''),
           format: 'pdf',
+          type: 'upload',
+          access_mode: 'public',
         },
         (error, result) => {
           if (error) reject(error);
