@@ -1,71 +1,43 @@
 // pages/api/upload.js
-import { v2 as cloudinary } from 'cloudinary';
-import multer from 'multer';
 import { neon } from '@neondatabase/serverless';
-
-export const config = { api: { bodyParser: false } };
-
-const upload = multer({ storage: multer.memoryStorage() });
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-function runMiddleware(req, res, fn) {
-  return new Promise((resolve, reject) =>
-    fn(req, res, err => err ? reject(err) : resolve())
-  );
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  await runMiddleware(req, res, upload.single('file'));
-
-  const file = req.file;
-  const folder = req.body.folder;
+  const { folder, fileName, driveLink } = req.body;
   const [course, type] = (folder || '').split('/');
 
-  if (!file || !course || !type) {
-    return res.status(400).json({ error: 'Missing file or folder' });
+  if (!folder || !fileName || !driveLink || !course || !type) {
+    return res.status(400).json({ error: 'Missing fields' });
   }
 
   try {
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          resource_type: 'raw',
-          folder: `quantaprep/${course}/${type}`,
-          public_id: file.originalname.replace('.pdf', ''),
-          format: 'pdf',
-          type: 'upload',
-          access_mode: 'public',
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(file.buffer);
-    });
+    // Extract file ID from Drive link
+    // Handles: https://drive.google.com/file/d/FILE_ID/view
+    // Handles: https://drive.google.com/open?id=FILE_ID
+    let fileId = driveLink;
+    let viewUrl = driveLink;
 
-    const viewUrl = 'https://docs.google.com/viewer?url=' + encodeURIComponent(result.secure_url);
+    const match = driveLink.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    const matchOpen = driveLink.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+
+    if (match) {
+      fileId = match[1];
+      viewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+    } else if (matchOpen) {
+      fileId = matchOpen[1];
+      viewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+    }
 
     const sql = neon(process.env.DATABASE_URL);
     await sql`
       INSERT INTO drive_files (course, type, name, drive_id, view_url)
-      VALUES (${course}, ${type}, ${file.originalname}, ${result.public_id}, ${viewUrl})
+      VALUES (${course}, ${type}, ${fileName}, ${fileId}, ${viewUrl})
     `;
 
-    return res.status(200).json({
-      success: true,
-      url: viewUrl,
-      fileId: result.public_id,
-      fileName: file.originalname,
-    });
+    return res.status(200).json({ success: true, url: viewUrl });
   } catch (err) {
-    console.error('Cloudinary upload error:', err);
-    return res.status(500).json({ error: 'Upload failed', details: err.message });
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to save', details: err.message });
   }
 }

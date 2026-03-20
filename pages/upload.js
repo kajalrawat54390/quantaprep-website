@@ -6,7 +6,8 @@ export default function UploadPage() {
   const [tab, setTab] = useState('pdf');
 
   // PDF state
-  const [file, setFile] = useState(null);
+  const [fileName, setFileName] = useState('');
+  const [driveLink, setDriveLink] = useState('');
   const [folder, setFolder] = useState('class9/notes');
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState('');
@@ -20,29 +21,26 @@ export default function UploadPage() {
   const [videoSuccess, setVideoSuccess] = useState(false);
   const [videoError, setVideoError] = useState('');
 
-  async function handleUpload() {
-    if (!file) { alert('Please select a file.'); return; }
+  async function handleSaveDriveLink() {
+    if (!fileName) { alert('Please enter a file name.'); return; }
+    if (!driveLink) { alert('Please paste the Google Drive link.'); return; }
     setUploading(true); setError(''); setUploadedUrl('');
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', folder);
-
       const res = await fetch('/api/upload', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder, fileName, driveLink }),
       });
       const data = await res.json();
       if (data.url) {
         setUploadedUrl(data.url);
-        setFile(null);
-        // reset file input
-        document.getElementById('pdfInput').value = '';
+        setFileName('');
+        setDriveLink('');
       } else {
-        setError(data.details || data.error || 'Upload failed.');
+        setError(data.error || 'Failed to save.');
       }
     } catch(e) {
-      setError('Upload failed. Please try again.');
+      setError('Failed to save. Please try again.');
     }
     setUploading(false);
   }
@@ -52,7 +50,6 @@ export default function UploadPage() {
     if (!youtubeId) { alert('Please enter a YouTube URL or video ID.'); return; }
     setVideoSaving(true); setVideoError('');
 
-    // Extract ID if full URL was pasted
     const match = youtubeId.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     const cleanId = match ? match[1] : youtubeId.trim();
 
@@ -98,7 +95,6 @@ export default function UploadPage() {
     { id:'cuet',    label:'CUET' },
   ];
 
-  // Live preview YouTube ID
   const ytMatch = youtubeId.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   const previewId = ytMatch ? ytMatch[1] : (youtubeId.trim().length === 11 ? youtubeId.trim() : null);
 
@@ -118,11 +114,6 @@ export default function UploadPage() {
         label{display:block;font-size:11px;font-weight:700;color:#0d1b3e;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.6px;}
         select,input[type=text]{width:100%;padding:11px 14px;border:1.5px solid #dce8f8;border-radius:8px;font-size:14px;margin-bottom:16px;font-family:'DM Sans',sans-serif;outline:none;color:#1a1a2e;transition:border-color 0.2s;}
         select:focus,input[type=text]:focus{border-color:#1565c0;}
-        .file-input-wrap{border:2px dashed #dce8f8;border-radius:10px;padding:24px;text-align:center;margin-bottom:18px;cursor:pointer;transition:border-color 0.2s;}
-        .file-input-wrap:hover{border-color:#1565c0;}
-        .file-input-wrap input{display:none;}
-        .file-label{font-size:14px;color:#5a6a85;cursor:pointer;}
-        .file-selected{font-size:13px;color:#1565c0;font-weight:600;margin-top:8px;}
         button.btn{width:100%;padding:13px;background:#0d1b3e;color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s;font-family:'DM Sans',sans-serif;}
         button.btn:hover{background:#1565c0;}
         button.btn:disabled{opacity:0.6;cursor:not-allowed;}
@@ -132,22 +123,31 @@ export default function UploadPage() {
         .err-msg{margin-top:10px;color:#dc2626;font-size:13px;font-weight:500;}
         .preview-wrap{margin-bottom:16px;border-radius:10px;overflow:hidden;aspect-ratio:16/9;background:#000;}
         .preview-wrap iframe{width:100%;height:100%;border:none;}
-        .hint{font-size:12px;color:#5a6a85;margin-top:-12px;margin-bottom:16px;line-height:1.5;}
+        .hint{font-size:12px;color:#5a6a85;margin-top:-12px;margin-bottom:16px;line-height:1.6;background:#f7faff;padding:10px 14px;border-radius:8px;border-left:3px solid #1565c0;}
         .divider{border:none;border-top:1.5px solid #e8f0fe;margin:20px 0;}
+        .steps{background:#f0f7ff;border-radius:10px;padding:16px;margin-bottom:20px;border:1.5px solid #dce8f8;}
+        .steps p{font-size:13px;color:#0d1b3e;margin-bottom:6px;line-height:1.6;}
+        .steps strong{color:#1565c0;}
       `}</style>
 
       <div className="card">
         <div className="logo">Quanta<span>Prep</span></div>
-        <p className="subtitle">Admin Upload Panel — Upload PDFs to Google Drive or add YouTube videos</p>
+        <p className="subtitle">Admin Upload Panel — Add PDFs from Google Drive or YouTube videos</p>
 
         <div className="tabs">
-          <button className={'tab' + (tab==='pdf'?' active':'')} onClick={()=>{setTab('pdf');setError('');setUploadedUrl('');}}>📄 PDF Upload</button>
+          <button className={'tab' + (tab==='pdf'?' active':'')} onClick={()=>{setTab('pdf');setError('');setUploadedUrl('');}}>📄 Add PDF</button>
           <button className={'tab' + (tab==='video'?' active':'')} onClick={()=>{setTab('video');setVideoError('');}}>🎬 Add Video</button>
         </div>
 
-        {/* PDF UPLOAD TAB */}
         {tab === 'pdf' && (
           <div>
+            <div className="steps">
+              <p>📌 <strong>How to add a PDF:</strong></p>
+              <p>1️⃣ Upload your PDF to <strong>Google Drive</strong></p>
+              <p>2️⃣ Right click the file → <strong>Share</strong> → change to <strong>"Anyone with the link"</strong> → Copy link</p>
+              <p>3️⃣ Paste the link below and click Save</p>
+            </div>
+
             <label>Select Folder</label>
             <select value={folder} onChange={e => setFolder(e.target.value)}>
               {folderOptions.map(({id, label}) => (
@@ -160,45 +160,48 @@ export default function UploadPage() {
               ))}
             </select>
 
-            <label>Select PDF File</label>
-            <div className="file-input-wrap" onClick={() => document.getElementById('pdfInput').click()}>
-              <input
-                type="file"
-                id="pdfInput"
-                accept=".pdf"
-                onChange={e => { setFile(e.target.files[0]); setUploadedUrl(''); setError(''); }}
-              />
-              <div className="file-label">
-                {file ? (
-                  <span className="file-selected">📄 {file.name}</span>
-                ) : (
-                  <>
-                    <div style={{fontSize:'32px',marginBottom:'8px'}}>📁</div>
-                    <div>Click to choose a PDF file</div>
-                    <div style={{fontSize:'12px',marginTop:'4px',color:'#aab4c8'}}>Max size: 10MB</div>
-                  </>
-                )}
-              </div>
-            </div>
+            <label>File Name</label>
+            <input
+              type="text"
+              value={fileName}
+              onChange={e => setFileName(e.target.value)}
+              placeholder="e.g. Chapter 3 — Laws of Motion Notes"
+            />
 
-            <button className="btn" onClick={handleUpload} disabled={uploading || !file}>
-              {uploading ? '⏳ Uploading to Google Drive...' : '⬆ Upload to Google Drive'}
+            <label>Google Drive Link</label>
+            <input
+              type="text"
+              value={driveLink}
+              onChange={e => { setDriveLink(e.target.value); setError(''); }}
+              placeholder="https://drive.google.com/file/d/..."
+            />
+            <p className="hint">
+              ⚠️ Make sure sharing is set to <strong>"Anyone with the link can view"</strong> before copying.
+            </p>
+
+            <button className="btn" onClick={handleSaveDriveLink} disabled={uploading}>
+              {uploading ? '⏳ Saving...' : '💾 Save PDF Link'}
             </button>
 
             {error && <p className="err-msg">❌ {error}</p>}
-
             {uploadedUrl && (
               <div className="url-box">
-                ✅ <strong>Uploaded successfully!</strong><br/><br/>
-                <a href={uploadedUrl} target="_blank" rel="noopener">👁 View on Google Drive ↗</a>
+                ✅ <strong>Saved successfully!</strong><br/><br/>
+                <a href={uploadedUrl} target="_blank" rel="noopener">👁 View PDF ↗</a>
               </div>
             )}
           </div>
         )}
 
-        {/* VIDEO TAB */}
         {tab === 'video' && (
           <div>
+            <div className="steps">
+              <p>📌 <strong>How to add a video:</strong></p>
+              <p>1️⃣ Upload video to <strong>YouTube</strong></p>
+              <p>2️⃣ Set visibility to <strong>Unlisted</strong></p>
+              <p>3️⃣ Copy the video link and paste below</p>
+            </div>
+
             <label>Course</label>
             <select value={videoCourse} onChange={e => setVideoCourse(e.target.value)}>
               {folderOptions.map(({id, label}) => (
@@ -219,14 +222,12 @@ export default function UploadPage() {
               type="text"
               value={youtubeId}
               onChange={e => { setYoutubeId(e.target.value); setVideoError(''); }}
-              placeholder="https://youtu.be/xxxxxxxxxxx  or  xxxxxxxxxxx"
+              placeholder="https://youtu.be/xxxxxxxxxxx"
             />
             <p className="hint">
-              📌 Upload the video to YouTube as <strong>Unlisted</strong>, then paste the link here.<br/>
-              Unlisted = only people with the link can watch it.
+              Unlisted videos are only visible to people who have the link — perfect for students.
             </p>
 
-            {/* Live preview */}
             {previewId && (
               <div className="preview-wrap">
                 <iframe
