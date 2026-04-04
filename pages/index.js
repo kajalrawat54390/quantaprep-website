@@ -70,8 +70,10 @@ export default function Home() {
 
   useEffect(() => {
     loadFromStorage();
-    const saved = sessionStorage.getItem('qp_admin_session');
-    if (saved === '1') setAdminAuth(true);
+    const saved = localStorage.getItem('qp_user');                                        // ← ADDED
+    if (saved) { try { setCurrentUser(JSON.parse(saved)); } catch {} }                    // ← ADDED
+    const savedAdmin = sessionStorage.getItem('qp_admin_session');
+    if (savedAdmin === '1') setAdminAuth(true);
     const ro = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); }), {threshold:0.12});
     document.querySelectorAll('.reveal').forEach(el => ro.observe(el));
     const onScroll = () => setShowBackTop(window.scrollY > 400);
@@ -97,7 +99,9 @@ export default function Home() {
     const data = await res.json();
     setLoginLoading(false);
     if (data.success) {
-      setCurrentUser({ name: data.name || loginEmail.split('@')[0], email: loginEmail, course: data.course });
+      const user = { name: data.name || loginEmail.split('@')[0], email: loginEmail, course: data.course };
+      setCurrentUser(user);
+      localStorage.setItem('qp_user', JSON.stringify(user));                              // ← ADDED
       setLoginMsg('✓ Welcome back!');
       setTimeout(() => { setModalOpen(false); setLoginMsg(''); }, 900);
     } else {
@@ -127,6 +131,7 @@ export default function Home() {
   // Logout
   function handleLogout() {
     setCurrentUser(null);
+    localStorage.removeItem('qp_user');                                                    // ← ADDED
     fetch('/api/logout').catch(()=>{});
   }
 

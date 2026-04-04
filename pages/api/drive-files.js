@@ -9,10 +9,10 @@ export default async function handler(req, res) {
 
   try {
     const rows = await sql`
-      SELECT id, name, view_url, added_at
+      SELECT id, name, view_url, added_at, sort_order
       FROM drive_files
       WHERE course = ${course} AND type = ${type}
-      ORDER BY added_at DESC
+      ORDER BY sort_order ASC, added_at DESC
     `;
     res.json({ files: rows });
   } catch(e) {
