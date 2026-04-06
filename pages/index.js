@@ -695,7 +695,7 @@ export default function Home() {
             <p className="section-sub">Come meet us in person! Our offline batches are held at our centre in Dehradun.</p>
             <div style={{marginTop:'24px'}}>
               <div className="vac-row"><span className="vac-icon">📍</span><div><strong>Address</strong><p>209 Tea Estate, Near Max International School,<br/>Banjarawala, Dehradun, Uttarakhand</p></div></div>
-              <div className="vac-row"><span className="vac-icon">📞</span><div><strong>Phone</strong><p><a href="tel:+918979315733">+91 93894 09569</a></p></div></div>
+              <div className="vac-row"><span className="vac-icon">📞</span><div><strong>Phone</strong><p><a href="tel:+918979315733">+91 89793 15733</a></p></div></div>
               <div className="vac-row"><span className="vac-icon">✉️</span><div><strong>Email</strong><p><a href="mailto:quantaprep54390@gmail.com">quantaprep54390@gmail.com</a></p></div></div>
               <div className="vac-row"><span className="vac-icon">🕐</span><div><strong>Batch Timings</strong><p>Morning &amp; Evening slots available<br/>Online &amp; Offline both</p></div></div>
             </div>
@@ -726,7 +726,7 @@ export default function Home() {
           <div className="footer-brand"><h3>QuantaPrep</h3><p>Where Concepts Build Confidence. Coaching for Classes 9–12, JEE, NEET &amp; CUET.</p></div>
           <div className="footer-links"><h4>Quick Links</h4><ul><li><a href="#hero">Home</a></li><li><a href="#resources">Resources</a></li><li><a href="#tests">Test Series</a></li><li><a href="#faculty">Faculty</a></li></ul></div>
           <div className="footer-links"><h4>Courses</h4><ul><li><a href="#">Class 9 &amp; 10</a></li><li><a href="#">Class 11 &amp; 12</a></li><li><a href="#">JEE Physics</a></li><li><a href="#">NEET Physics</a></li></ul></div>
-          <div className="footer-links"><h4>Contact</h4><ul><li><a href="mailto:quantaprep54390@gmail.com">📧 quantaprep54390@gmail.com</a></li><li><a href="tel:+918979315733">📞 +91 93894 09569</a></li><li><a href="https://wa.me/918979315733" target="_blank" rel="noopener">💬 WhatsApp Us</a></li><li><a href="https://www.instagram.com/quanta.prep/" target="_blank" rel="noopener">📸 @quanta.prep</a></li></ul></div>
+          <div className="footer-links"><h4>Contact</h4><ul><li><a href="mailto:quantaprep54390@gmail.com">📧 quantaprep54390@gmail.com</a></li><li><a href="tel:+918979315733">📞 +91 89793 15733</a></li><li><a href="https://wa.me/918979315733" target="_blank" rel="noopener">💬 WhatsApp Us</a></li><li><a href="https://www.instagram.com/quanta.prep/" target="_blank" rel="noopener">📸 @quanta.prep</a></li></ul></div>
         </div>
         <div className="footer-bottom">
           <div className="footer-socials">
